@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Object Detection with Voice</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <style>
+    body { 
+      text-align: center; 
+      font-family: 'Arial Black', sans-serif; 
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: url("pic.jpg") no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+    }
+    video, canvas { border-radius: 15px; }
+    #webcam { width: 640px; height: 480px; }
+    canvas { 
+      position: absolute; 
+      left: 50%; 
+      top: 50%; 
+      transform: translate(-50%, -50%); 
+    }
+    .container { 
+      position: relative; 
+      display: inline-block; 
+      box-shadow: 0px 8px 25px rgba(0,0,0,0.3);
+      border-radius: 15px;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let model;
+    let lastSpoken = "";
+
+    async function init() {
+      model = await cocoSsd.load();
+      console.log("Model loaded!");
+
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            video.play();
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            detectFrame();
+          };
+        });
+    }
+
+    async function detectFrame() {
+      const predictions = await model.detect(video);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      predictions.forEach(pred => {
+        ctx.beginPath();
+        ctx.rect(...pred.bbox);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "lime";
+        ctx.stroke();
+        ctx.font = "18px Arial";
+        ctx.fillStyle = "yellow";
+        ctx.fillText(
+          `${pred.class} (${Math.round(pred.score * 100)}%)`,
+          pred.bbox[0],
+          pred.bbox[1] > 20 ? pred.bbox[1] - 5 : 20
+        );
+      });
+
+      if (predictions.length > 0) {
+        const objectName = predictions[0].class;
+        if (objectName !== lastSpoken) {
+          speak(objectName);
+          lastSpoken = objectName;
+        }
+      }
+
+      requestAnimationFrame(detectFrame);
+    }
+
+    function speak(text) {
+      const msg = new SpeechSynthesisUtterance(text);
+      msg.lang = "en-US";
+      window.speechSynthesis.speak(msg);
+    }
+
+    init();
+  </script>
+</body>
+</html>
